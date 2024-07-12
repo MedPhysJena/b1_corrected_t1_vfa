@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "b1_corrected_t1_vfa"
+authors = [
+    {name = "Marta Maggioni", email = "martabrigid.maggioni@unibas.ch"},
+    {name = "Renat Sibgatulin", email = "renat.sibgatulin@med.uni-jena.de"}
+]
+version = "0.0.1"
+readme = "README.md"
+license = { text = "MIT License" }
+description = "Function to fit T1 from a VFA acquisition with B1 correction"
+dependencies = [
+  "numpy",
+  "scipy"
+]
+[project.optional-dependencies]
+test = [ "pytest", "yaslp @ git+https://github.com/MedPhysJena/yaslp@v0.1.1"]
+
+[tool.setuptools]
+packages = ["b1_corrected_t1_vfa"]
