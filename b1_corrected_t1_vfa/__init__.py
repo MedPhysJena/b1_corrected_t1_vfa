@@ -30,10 +30,6 @@ def fit_t1_vfa(data_stack, fas, tr, b1_map):
         Voxels where fitting failed contain NaNs.
     """
 
-    assert (
-        data_stack.ndim == 4
-    ), f"data_stack is expected to be 4D, got shape: {data_stack.shape}"
-
     grid_shape, nfa = data_stack.shape[:-1], data_stack.shape[-1]
     assert fas.shape == (
         nfa,
@@ -42,24 +38,20 @@ def fit_t1_vfa(data_stack, fas, tr, b1_map):
         b1_map.shape == grid_shape
     ), f"{b1_map.shape=} does not agree with the leading axes of the data ({grid_shape})"
 
-    s0_map = np.full(grid_shape, np.nan)
-    t1_map = np.full(grid_shape, np.nan)
+    @np.vectorize(signature="(a),(a)->(),()")
+    def fit_single_voxel_vectorized(signal, corrected_fas):
+        try:
+            (s0, t1), _ = curve_fit(
+                lambda fas, s0, t1: flash_equation(fas, tr, s0, t1),
+                corrected_fas,
+                signal,
+                bounds=(0, np.inf),
+            )
+        except RuntimeError:
+            s0, t1 = np.nan, np.nan
 
-    for iread in range(grid_shape[0]):
-        for jline in range(grid_shape[1]):
-            for kslice in range(grid_shape[2]):
-                signal = data_stack[iread, jline, kslice, :]
-                corrected_fas = fas * b1_map[iread, jline, kslice]
-                try:
-                    popt, _ = curve_fit(
-                        lambda fas, s0, t1: flash_equation(fas, tr, s0, t1),
-                        corrected_fas,
-                        signal,
-                        bounds=(0, np.inf),
-                    )
-                    s0_map[iread, jline, kslice] = popt[0]
-                    t1_map[iread, jline, kslice] = popt[1]
-                except RuntimeError:
-                    pass
+        return s0, t1
+
+    s0_map, t1_map = fit_single_voxel_vectorized(data_stack, b1_map[..., None] * fas)
 
     return s0_map, t1_map

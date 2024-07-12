@@ -17,7 +17,8 @@ HALF_SIZE = 16
 
 
 @pytest.fixture()
-def ground_truth_maps() -> dict[str, np.ndarray]:
+def ground_truth_maps_in_3d() -> dict[str, np.ndarray]:
+    """Generate three Shepp-Logan style phantoms in 3D."""
     ellipses = {
         "s0": [
             Ellipse(value=1, radius=(0.8, 0.9, 0.8), center=(0, 0, 0), phi=0),  # FG
@@ -42,7 +43,31 @@ def ground_truth_maps() -> dict[str, np.ndarray]:
     return {k: shepp_logan(GRID_SHAPE, ell) for k, ell in ellipses.items()}
 
 
-def test_b1(ground_truth_maps):
+@pytest.fixture(params=[2, 3])
+def input_data(ground_truth_maps_in_3d, request) -> tuple[dict[str, np.ndarray], tuple]:
+    """Given the phantoms in 3D either pass them on or select a slice.
+
+    This fixture generates two distinct testing scenarios: for a 2- and a 3D domain,
+    allowing the test to remain agnostic of the dimensionality of the data
+    Additionally to the data it returns a tuple of slices which is used to select
+    a plane for visualisation from the 3D data or the entire 2D data.
+    """
+    ndim = request.param
+    if ndim == 3:
+        vis_selection = (slice(None), slice(None), HALF_SIZE)
+        data = ground_truth_maps_in_3d
+    elif ndim == 2:
+        vis_selection = ()
+        data = {k: v[..., HALF_SIZE] for k, v in ground_truth_maps_in_3d.items()}
+    else:
+        raise ValueError(f"Unexpected {ndim=}")
+    return data, vis_selection
+
+
+def test_b1(input_data):
+    ground_truth_maps, vis_selection = input_data
+    grid_shape = ground_truth_maps["s0"].shape
+
     # params
     fas = np.array([5, 11, 18, 24, 32])
     tr = 16
@@ -53,7 +78,7 @@ def test_b1(ground_truth_maps):
         ground_truth_maps["s0"][..., None],
         ground_truth_maps["t1"][..., None],
     )
-    assert signal.shape == GRID_SHAPE + (fas.size,)
+    assert signal.shape == grid_shape + (fas.size,)
 
     ## show the data
     if HAS_MPL:
@@ -61,7 +86,7 @@ def test_b1(ground_truth_maps):
         vmin, vmax = signal.min(), signal.max()
         for i, ax in enumerate(axes):
             ax.imshow(
-                signal[..., HALF_SIZE, i].T,
+                signal[vis_selection].T,
                 origin="lower",
                 interpolation="none",
                 vmin=vmin,
@@ -123,7 +148,7 @@ def test_b1(ground_truth_maps):
             ):
                 vmin, vmax = ground_truth_maps[var].min(), ground_truth_maps[var].max()
                 im = ax.imshow(
-                    arr[..., HALF_SIZE].T,
+                    arr[vis_selection].T,
                     origin="lower",
                     interpolation="none",
                     norm=norm,
